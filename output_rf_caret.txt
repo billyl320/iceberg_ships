@@ -1,0 +1,1497 @@
+
+R version 3.4.4 (2018-03-15) -- "Someone to Lean On"
+Copyright (C) 2018 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Previously saved workspace restored]
+
+> #r simple svm model
+> 
+> rm(list=ls())
+> 
+> 
+> library(xtable) #for table creation for latex
+> library(MASS)#for qda
+> library(plyr)#for obtaining means by factor
+> library(e1071)#for tune
+> library(caret)#for more info on training rf
+Loading required package: lattice
+Loading required package: ggplot2
+> library(randomForest)#for more info on training rf
+randomForest 4.6-14
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:ggplot2’:
+
+    margin
+
+> 
+> #loading data
+> labs = read.table('LABS_ice_boat.txt', sep=',', header=TRUE)
+> 
+> #ei
+> 
+> #ei_HH = read.table('HH_ice_boat.txt', sep=',', header=TRUE)
+> #ei_HV = read.table('HV_ice_boat.txt', sep=',', header=TRUE)
+> #ei = cbind(ei_HH, ei_HV)
+> ei = read.table('AVE_ice_boat.txt', sep=',', header=TRUE)
+> #colnames(ei)<-c(paste(colnames(ei)[1:2],'_HH', sep=''),
+> #                paste(colnames(ei)[1:2],'_HV', sep=''))
+> 
+> #other shape metrics
+> #shapes_HH<-read.table('ice_boat_HH_SHAPES.txt', sep=',', header=TRUE)
+> #shapes_HV<-read.table('ice_boat_HV_SHAPES.txt', sep=',', header=TRUE)
+> #shapes<-cbind(shapes_HH, shapes_HV)
+> shapes<-read.table('ice_boat_AVE_SHAPES.txt', sep=',', header=TRUE)
+> 
+> #colnames(shapes)<-c(paste(colnames(shapes_HH),'_HH', sep=''),
+> #                    paste(colnames(shapes_HH),'_HV', sep=''))
+> 
+> 
+> #1 = iceberg; 0 = boat
+> labs2<-as.factor(unlist( labs ))
+> labs2<-unname(labs2)
+> #
+> #combining data
+> temp<-as.data.frame(cbind(ei, ei[,1]/(ei[,1]+ei[,2]), shapes ))#,
+> #                          ei[,3]/(ei[,3]+ei[,4]), shapes))
+> #colnames(temp)[5]<-'sp_hh'
+> #colnames(temp)[6]<-'sp_hv'
+> colnames(temp)[3]<-'sp'
+> 
+> 
+> #check distributions of the observations per class
+> not_use<-c(8,11:17)+1
+> 
+> test<-as.data.frame(cbind(labs2, temp))
+> colnames(test)[1]<-"labs_svm"
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> summary_1<-sapply(test[keep1,-not_use],margins=2, summary)
+> 
+> summary_0<-sapply(test[keep2,-not_use],margins=2, summary)
+> 
+> sum_mat_1<-matrix(unlist(summary_1)[-c(1,2)], nrow=9, ncol=6, byrow=TRUE)
+> rownames(sum_mat_1)<-names(summary_1)[-1]
+> colnames(sum_mat_1)<-names(summary_1$sp)
+> 
+> sum_mat_0<-matrix(unlist(summary_0)[-c(1,2)], nrow=9, ncol=6, byrow=TRUE)
+> rownames(sum_mat_0)<-names(summary_0)[-1]
+> colnames(sum_mat_0)<-names(summary_0$sp)
+> 
+> xtable(sum_mat_1)
+% latex table generated in R 3.4.4 by xtable 1.8-4 package
+% Thu Apr  9 12:57:15 2020
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrrrr}
+  \hline
+ & Min. & 1st Qu. & Median & Mean & 3rd Qu. & Max. \\ 
+  \hline
+white & 7.00 & 85.00 & 119.00 & 188.28 & 163.00 & 4888.00 \\ 
+  black & 737.00 & 5462.00 & 5506.00 & 5436.72 & 5540.00 & 5618.00 \\ 
+  sp & 0.00 & 0.02 & 0.02 & 0.03 & 0.03 & 0.87 \\ 
+  Shape\_circ & 0.27 & 1.29 & 1.52 & 2.07 & 1.96 & 33.23 \\ 
+  Shape\_eccent & 1.01 & 2.24 & 3.77 & 5.42 & 6.42 & 62.09 \\ 
+  Shape\_e1 & 0.86 & 10.06 & 19.65 & 31.56 & 32.99 & 563.21 \\ 
+  Shape\_e2 & 0.36 & 3.34 & 5.64 & 17.00 & 10.39 & 526.32 \\ 
+  White\_box & 8.00 & 85.00 & 118.00 & 186.72 & 162.00 & 4799.00 \\ 
+  Black\_box & 1.00 & 61.00 & 105.00 & 207.00 & 173.00 & 6495.00 \\ 
+   \hline
+\end{tabular}
+\end{table}
+> 
+> xtable(sum_mat_0)
+% latex table generated in R 3.4.4 by xtable 1.8-4 package
+% Thu Apr  9 12:57:16 2020
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrrrr}
+  \hline
+ & Min. & 1st Qu. & Median & Mean & 3rd Qu. & Max. \\ 
+  \hline
+white & 11.00 & 68.00 & 101.00 & 144.52 & 131.00 & 5143.00 \\ 
+  black & 482.00 & 5494.00 & 5524.00 & 5480.48 & 5557.00 & 5614.00 \\ 
+  sp & 0.00 & 0.01 & 0.02 & 0.03 & 0.02 & 0.91 \\ 
+  Shape\_circ & 0.36 & 1.27 & 1.55 & 2.12 & 1.99 & 36.63 \\ 
+  Shape\_eccent & 1.01 & 3.16 & 6.09 & 9.22 & 11.57 & 98.30 \\ 
+  Shape\_e1 & 0.62 & 4.35 & 11.12 & 25.53 & 26.01 & 478.23 \\ 
+  Shape\_e2 & 0.45 & 2.30 & 4.22 & 18.42 & 21.08 & 491.41 \\ 
+  White\_box & 12.00 & 68.00 & 101.00 & 143.52 & 131.00 & 5009.00 \\ 
+  Black\_box & 3.00 & 49.00 & 86.00 & 191.79 & 166.50 & 6119.00 \\ 
+   \hline
+\end{tabular}
+\end{table}
+> 
+> #simple model to check if it is possible to do simple model
+> rf.fit<-randomForest(as.factor(test$labs_svm) ~.,
++               data=test[,-not_use])#,
+>               #sampsize=make.size(as.factor(test$labs_svm)))
+> 
+> #predicting
+> rf.pred=predict(rf.fit, test)
+> rf.class = rf.pred
+> 
+> #test
+> table(rf.class, test$labs_svm)
+        
+rf.class   0   1
+       0 851   0
+       1   0 753
+> #overall classification rate for training
+> mean(rf.class==test$labs_svm)
+[1] 1
+> 
+> #now let's tune the svm model using 10-folds on t-set and validaiton
+> 
+> set.seed(80636)
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> valid_1<-sample(keep1, floor(length(keep1)*0.30) )
+> valid_2<-sample(keep2, floor(length(keep2)*0.30))
+> 
+> valid<-c(valid_1, valid_2)
+> 
+> tc <- trainControl(method='cv',
++                   number = 10,
++                   search='random')
+> 
+> tune.out<-train(as.factor(labs_svm) ~.,
++           data=test[,-not_use],
++           method='rf',
++           trControl = tc)
+> 
+> print(tune.out)
+Random Forest 
+
+1604 samples
+   9 predictor
+   2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 1444, 1443, 1444, 1444, 1443, 1443, ... 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+  1     0.6764325  0.3485364
+  8     0.6732997  0.3445467
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 1.
+> 
+> (tune.out$finalModel$importance)
+             MeanDecreaseGini
+white                70.54220
+black                71.69617
+sp                   73.45778
+Shape_circ           83.46879
+Shape_eccent        105.20156
+Shape_e1            112.42200
+Shape_e2            110.35895
+White_box            74.91304
+Black_box            80.31889
+> 
+> varImp(tune.out$finalModel)
+               Overall
+white         70.54220
+black         71.69617
+sp            73.45778
+Shape_circ    83.46879
+Shape_eccent 105.20156
+Shape_e1     112.42200
+Shape_e2     110.35895
+White_box     74.91304
+Black_box     80.31889
+> 
+> ypred=predict(tune.out$finalModel ,test[-valid,])
+> table(predict=ypred, truth=test$labs_svm[-valid])
+       truth
+predict   0   1
+      0 596   0
+      1   0 528
+> mean(ypred==test$labs_svm[-valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 596   0
+         1   0 528
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9967, 1)
+    No Information Rate : 0.5302     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5302     
+         Detection Rate : 0.5302     
+   Detection Prevalence : 0.5302     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> ypred=predict(tune.out$finalModel ,test[valid,])
+> table(predict=ypred, truth=test$labs_svm[valid])
+       truth
+predict   0   1
+      0 255   0
+      1   0 225
+> mean(ypred==test$labs_svm[valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 255   0
+         1   0 225
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9923, 1)
+    No Information Rate : 0.5312     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5312     
+         Detection Rate : 0.5312     
+   Detection Prevalence : 0.5312     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> #####################
+> ## Sanity Checks
+> #####################
+> 
+> #sanity check - swap the 0s and 1s to ensure that predictions flip
+> index_0<-which(test$labs_svm==0)
+> index_1<-which(test$labs_svm==1)
+> 
+> sanity_labs<-test$labs_svm
+> sanity_labs[index_0]=1
+> sanity_labs[index_1]=0
+> 
+> head(sanity_labs)
+[1] 1 1 0 1 1 0
+Levels: 0 1
+> 
+> ypred_sanity=predict(tune.out$finalModel ,test)
+> table(predict=ypred_sanity, truth=sanity_labs)
+       truth
+predict   0   1
+      0   0 851
+      1 753   0
+> mean(ypred_sanity==sanity_labs)
+[1] 0
+> 
+> confusionMatrix(ypred_sanity, sanity_labs)
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0   0 851
+         1 753   0
+                                     
+               Accuracy : 0          
+                 95% CI : (0, 0.0023)
+    No Information Rate : 0.5305     
+    P-Value [Acc > NIR] : 1.00000    
+                                     
+                  Kappa : -0.9926    
+                                     
+ Mcnemar's Test P-Value : 0.01544    
+                                     
+            Sensitivity : 0.0000     
+            Specificity : 0.0000     
+         Pos Pred Value : 0.0000     
+         Neg Pred Value : 0.0000     
+             Prevalence : 0.4695     
+         Detection Rate : 0.0000     
+   Detection Prevalence : 0.5305     
+      Balanced Accuracy : 0.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> # since the results swapped, we know that the
+> # algorithm isn't making some silly error.
+> 
+> #now let's 'confuse' the algorithm by changing some of the values
+> # we'll simuate values by swapping around random values
+> # between pairs of observations (number_obs_sanity each )
+> 
+> num_0<-length(index_0)
+> num_1<-length(index_1)
+> 
+> number_obs_sanity<-300
+> 
+> #getting pairs
+> vals_0<-sample(index_0,
++                size=number_obs_sanity,
++                replace=FALSE)
+> vals_1<-sample(index_1,
++                size=number_obs_sanity,
++                replace=FALSE)
+> 
+> #creating changed data set
+> changed_data<-test[,-not_use]
+> 
+> 
+> 
+> for(i in 1:number_obs_sanity){
++ 
++     #variable to swap
++     temp_var<-sample(2:10, 4)
++ 
++     #placeholder for 0
++     temp_val<-changed_data[vals_0[i], temp_var]
++ 
++     #swapping 1 for 0
++     changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
++ 
++     #swapping 0 for 1
++     changed_data[vals_1[i], temp_var]<- temp_var
++ 
++ }
+> 
+> #now predicting on the data using swapped observations and trained model
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[-valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[-valid])
+       truth
+predict   0   1
+      0 513  44
+      1  83 484
+> mean(ypred==changed_data$labs_svm[-valid])
+[1] 0.8870107
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 513  44
+         1  83 484
+                                         
+               Accuracy : 0.887          
+                 95% CI : (0.867, 0.9049)
+    No Information Rate : 0.5302         
+    P-Value [Acc > NIR] : < 2.2e-16      
+                                         
+                  Kappa : 0.7741         
+                                         
+ Mcnemar's Test P-Value : 0.0007464      
+                                         
+            Sensitivity : 0.8607         
+            Specificity : 0.9167         
+         Pos Pred Value : 0.9210         
+         Neg Pred Value : 0.8536         
+             Prevalence : 0.5302         
+         Detection Rate : 0.4564         
+   Detection Prevalence : 0.4956         
+      Balanced Accuracy : 0.8887         
+                                         
+       'Positive' Class : 0              
+                                         
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[valid])
+       truth
+predict   0   1
+      0 222  20
+      1  33 205
+> mean(ypred==changed_data$labs_svm[valid])
+[1] 0.8895833
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 222  20
+         1  33 205
+                                          
+               Accuracy : 0.8896          
+                 95% CI : (0.8581, 0.9162)
+    No Information Rate : 0.5312          
+    P-Value [Acc > NIR] : < 2e-16         
+                                          
+                  Kappa : 0.7791          
+                                          
+ Mcnemar's Test P-Value : 0.09929         
+                                          
+            Sensitivity : 0.8706          
+            Specificity : 0.9111          
+         Pos Pred Value : 0.9174          
+         Neg Pred Value : 0.8613          
+             Prevalence : 0.5312          
+         Detection Rate : 0.4625          
+   Detection Prevalence : 0.5042          
+      Balanced Accuracy : 0.8908          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> #
+> #now let's do it for the most important triad of variables
+> # (e1, e2, and eccentricity)
+> 
+> #creating changed data set
+> changed_data<-test[,-not_use]
+> 
+> 
+> for(i in 1:number_obs_sanity){
++ 
++     #variable to swap
++     temp_var<-c(6:8)
++ 
++     #placeholder for 0
++     temp_val<-changed_data[vals_0[i], temp_var]
++ 
++     #swapping 1 for 0
++     changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
++ 
++     #swapping 0 for 1
++     changed_data[vals_1[i], temp_var]<- temp_var
++ 
++ }
+> 
+> #now predicting on the data using swapped observations and trained model
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[-valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[-valid])
+       truth
+predict   0   1
+      0 512  37
+      1  84 491
+> mean(ypred==changed_data$labs_svm[-valid])
+[1] 0.8923488
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 512  37
+         1  84 491
+                                          
+               Accuracy : 0.8923          
+                 95% CI : (0.8727, 0.9099)
+    No Information Rate : 0.5302          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.785           
+                                          
+ Mcnemar's Test P-Value : 2.892e-05       
+                                          
+            Sensitivity : 0.8591          
+            Specificity : 0.9299          
+         Pos Pred Value : 0.9326          
+         Neg Pred Value : 0.8539          
+             Prevalence : 0.5302          
+         Detection Rate : 0.4555          
+   Detection Prevalence : 0.4884          
+      Balanced Accuracy : 0.8945          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[valid])
+       truth
+predict   0   1
+      0 221  13
+      1  34 212
+> mean(ypred==changed_data$labs_svm[valid])
+[1] 0.9020833
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 221  13
+         1  34 212
+                                          
+               Accuracy : 0.9021          
+                 95% CI : (0.8719, 0.9272)
+    No Information Rate : 0.5312          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.8045          
+                                          
+ Mcnemar's Test P-Value : 0.003531        
+                                          
+            Sensitivity : 0.8667          
+            Specificity : 0.9422          
+         Pos Pred Value : 0.9444          
+         Neg Pred Value : 0.8618          
+             Prevalence : 0.5312          
+         Detection Rate : 0.4604          
+   Detection Prevalence : 0.4875          
+      Balanced Accuracy : 0.9044          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> #now let's do it for SPEI vars
+> # (white, black, sp)
+> 
+> #creating changed data set
+> changed_data<-test[,-not_use]
+> 
+> 
+> for(i in 1:number_obs_sanity){
++ 
++     #variable to swap
++     temp_var<-c(2:4)
++ 
++     #placeholder for 0
++     temp_val<-changed_data[vals_0[i], temp_var]
++ 
++     #swapping 1 for 0
++     changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
++ 
++     #swapping 0 for 1
++     changed_data[vals_1[i], temp_var]<- temp_var
++ 
++ }
+> 
+> #now predicting on the data using swapped observations and trained model
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[-valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[-valid])
+       truth
+predict   0   1
+      0 537  21
+      1  59 507
+> mean(ypred==changed_data$labs_svm[-valid])
+[1] 0.9288256
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 537  21
+         1  59 507
+                                          
+               Accuracy : 0.9288          
+                 95% CI : (0.9122, 0.9432)
+    No Information Rate : 0.5302          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.8577          
+                                          
+ Mcnemar's Test P-Value : 3.523e-05       
+                                          
+            Sensitivity : 0.9010          
+            Specificity : 0.9602          
+         Pos Pred Value : 0.9624          
+         Neg Pred Value : 0.8958          
+             Prevalence : 0.5302          
+         Detection Rate : 0.4778          
+   Detection Prevalence : 0.4964          
+      Balanced Accuracy : 0.9306          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[valid])
+       truth
+predict   0   1
+      0 224  10
+      1  31 215
+> mean(ypred==changed_data$labs_svm[valid])
+[1] 0.9145833
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 224  10
+         1  31 215
+                                         
+               Accuracy : 0.9146         
+                 95% CI : (0.8859, 0.938)
+    No Information Rate : 0.5312         
+    P-Value [Acc > NIR] : < 2.2e-16      
+                                         
+                  Kappa : 0.8294         
+                                         
+ Mcnemar's Test P-Value : 0.001787       
+                                         
+            Sensitivity : 0.8784         
+            Specificity : 0.9556         
+         Pos Pred Value : 0.9573         
+         Neg Pred Value : 0.8740         
+             Prevalence : 0.5312         
+         Detection Rate : 0.4667         
+   Detection Prevalence : 0.4875         
+      Balanced Accuracy : 0.9170         
+                                         
+       'Positive' Class : 0              
+                                         
+> 
+> #now let's do it for remaining variables
+> # (circ, black_box, white_box)
+> 
+> #creating changed data set
+> changed_data<-test[,-not_use]
+> 
+> 
+> for(i in 1:number_obs_sanity){
++ 
++     #variable to swap
++     temp_var<-c(5,9,10)
++ 
++     #placeholder for 0
++     temp_val<-changed_data[vals_0[i], temp_var]
++ 
++     #swapping 1 for 0
++     changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
++ 
++     #swapping 0 for 1
++     changed_data[vals_1[i], temp_var]<- temp_var
++ 
++ }
+> 
+> #now predicting on the data using swapped observations and trained model
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[-valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[-valid])
+       truth
+predict   0   1
+      0 559  36
+      1  37 492
+> mean(ypred==changed_data$labs_svm[-valid])
+[1] 0.9350534
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 559  36
+         1  37 492
+                                         
+               Accuracy : 0.9351         
+                 95% CI : (0.919, 0.9488)
+    No Information Rate : 0.5302         
+    P-Value [Acc > NIR] : <2e-16         
+                                         
+                  Kappa : 0.8696         
+                                         
+ Mcnemar's Test P-Value : 1              
+                                         
+            Sensitivity : 0.9379         
+            Specificity : 0.9318         
+         Pos Pred Value : 0.9395         
+         Neg Pred Value : 0.9301         
+             Prevalence : 0.5302         
+         Detection Rate : 0.4973         
+   Detection Prevalence : 0.5294         
+      Balanced Accuracy : 0.9349         
+                                         
+       'Positive' Class : 0              
+                                         
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[valid])
+       truth
+predict   0   1
+      0 229  18
+      1  26 207
+> mean(ypred==changed_data$labs_svm[valid])
+[1] 0.9083333
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 229  18
+         1  26 207
+                                          
+               Accuracy : 0.9083          
+                 95% CI : (0.8789, 0.9326)
+    No Information Rate : 0.5312          
+    P-Value [Acc > NIR] : <2e-16          
+                                          
+                  Kappa : 0.8163          
+                                          
+ Mcnemar's Test P-Value : 0.2913          
+                                          
+            Sensitivity : 0.8980          
+            Specificity : 0.9200          
+         Pos Pred Value : 0.9271          
+         Neg Pred Value : 0.8884          
+             Prevalence : 0.5312          
+         Detection Rate : 0.4771          
+   Detection Prevalence : 0.5146          
+      Balanced Accuracy : 0.9090          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> 
+> #now let's randomly select any number of variables
+> 
+> #creating changed data set
+> changed_data<-test[,-not_use]
+> 
+> 
+> for(i in 1:number_obs_sanity){
++ 
++     num_swap<-c(1:9, 1)
++ 
++     #variable to swap
++     temp_var<-sample(2:10, num_swap)
++ 
++     #placeholder for 0
++     temp_val<-changed_data[vals_0[i], temp_var]
++ 
++     #swapping 1 for 0
++     changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
++ 
++     #swapping 0 for 1
++     changed_data[vals_1[i], temp_var]<- temp_var
++ 
++ }
+> 
+> #now predicting on the data using swapped observations and trained model
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[-valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[-valid])
+       truth
+predict   0   1
+      0 589   4
+      1   7 524
+> mean(ypred==changed_data$labs_svm[-valid])
+[1] 0.9902135
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 589   4
+         1   7 524
+                                          
+               Accuracy : 0.9902          
+                 95% CI : (0.9826, 0.9951)
+    No Information Rate : 0.5302          
+    P-Value [Acc > NIR] : <2e-16          
+                                          
+                  Kappa : 0.9804          
+                                          
+ Mcnemar's Test P-Value : 0.5465          
+                                          
+            Sensitivity : 0.9883          
+            Specificity : 0.9924          
+         Pos Pred Value : 0.9933          
+         Neg Pred Value : 0.9868          
+             Prevalence : 0.5302          
+         Detection Rate : 0.5240          
+   Detection Prevalence : 0.5276          
+      Balanced Accuracy : 0.9903          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> ypred=predict(tune.out$finalModel ,changed_data[valid,])
+> table(predict=ypred, truth=changed_data$labs_svm[valid])
+       truth
+predict   0   1
+      0 253   1
+      1   2 224
+> mean(ypred==changed_data$labs_svm[valid])
+[1] 0.99375
+> 
+> confusionMatrix(ypred, changed_data$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 253   1
+         1   2 224
+                                          
+               Accuracy : 0.9938          
+                 95% CI : (0.9818, 0.9987)
+    No Information Rate : 0.5312          
+    P-Value [Acc > NIR] : <2e-16          
+                                          
+                  Kappa : 0.9875          
+                                          
+ Mcnemar's Test P-Value : 1               
+                                          
+            Sensitivity : 0.9922          
+            Specificity : 0.9956          
+         Pos Pred Value : 0.9961          
+         Neg Pred Value : 0.9912          
+             Prevalence : 0.5312          
+         Detection Rate : 0.5271          
+   Detection Prevalence : 0.5292          
+      Balanced Accuracy : 0.9939          
+                                          
+       'Positive' Class : 0               
+                                          
+> 
+> 
+> ###############################################
+> #repeating to check if results are the same
+> #using mtry=1
+> 
+> set.seed(9400)
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> valid_1<-sample(keep1, floor(length(keep1)*0.30) )
+> valid_2<-sample(keep2, floor(length(keep2)*0.30))
+> 
+> valid<-c(valid_1, valid_2)
+> 
+> tc <- trainControl(method='cv',
++                   number = 10,
++                   search='grid')
+> 
+> grid <- expand.grid(mtry=1)
+> 
+> tune.out<-train(as.factor(labs_svm) ~.,
++           data=test[,-not_use],
++           method='rf',
++           trControl = tc,
++           tuneGrid=grid)
+> 
+> print(tune.out)
+Random Forest 
+
+1604 samples
+   9 predictor
+   2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 1444, 1443, 1444, 1444, 1444, 1444, ... 
+Resampling results:
+
+  Accuracy  Kappa    
+  0.675774  0.3476162
+
+Tuning parameter 'mtry' was held constant at a value of 1
+> 
+> (tune.out$finalModel$importance)
+             MeanDecreaseGini
+white                70.06776
+black                72.14081
+sp                   70.61057
+Shape_circ           83.49182
+Shape_eccent        103.05342
+Shape_e1            112.65080
+Shape_e2            112.45021
+White_box            76.44986
+Black_box            81.39651
+> 
+> varImp(tune.out$finalModel)
+               Overall
+white         70.06776
+black         72.14081
+sp            70.61057
+Shape_circ    83.49182
+Shape_eccent 103.05342
+Shape_e1     112.65080
+Shape_e2     112.45021
+White_box     76.44986
+Black_box     81.39651
+> 
+> ypred=predict(tune.out$finalModel ,test[-valid,])
+> table(predict=ypred, truth=test$labs_svm[-valid])
+       truth
+predict   0   1
+      0 596   0
+      1   0 528
+> mean(ypred==test$labs_svm[-valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 596   0
+         1   0 528
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9967, 1)
+    No Information Rate : 0.5302     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5302     
+         Detection Rate : 0.5302     
+   Detection Prevalence : 0.5302     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> ypred=predict(tune.out$finalModel ,test[valid,])
+> table(predict=ypred, truth=test$labs_svm[valid])
+       truth
+predict   0   1
+      0 255   0
+      1   0 225
+> mean(ypred==test$labs_svm[valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 255   0
+         1   0 225
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9923, 1)
+    No Information Rate : 0.5312     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5312     
+         Detection Rate : 0.5312     
+   Detection Prevalence : 0.5312     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> set.seed(60662)
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> valid_1<-sample(keep1, floor(length(keep1)*0.30) )
+> valid_2<-sample(keep2, floor(length(keep2)*0.30))
+> 
+> valid<-c(valid_1, valid_2)
+> 
+> tc <- trainControl(method='cv',
++                   number = 10,
++                   search='grid')
+> 
+> grid <- expand.grid(mtry=1)
+> 
+> tune.out<-train(as.factor(labs_svm) ~.,
++           data=test[,-not_use],
++           method='rf',
++           trControl = tc,
++           tuneGrid=grid)
+> 
+> print(tune.out)
+Random Forest 
+
+1604 samples
+   9 predictor
+   2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 1443, 1443, 1444, 1443, 1444, 1444, ... 
+Resampling results:
+
+  Accuracy   Kappa    
+  0.6807492  0.3581856
+
+Tuning parameter 'mtry' was held constant at a value of 1
+> 
+> (tune.out$finalModel$importance)
+             MeanDecreaseGini
+white                71.04852
+black                72.49021
+sp                   71.96383
+Shape_circ           83.26979
+Shape_eccent        106.25089
+Shape_e1            111.62791
+Shape_e2            110.91868
+White_box            75.49038
+Black_box            79.78835
+> 
+> varImp(tune.out$finalModel)
+               Overall
+white         71.04852
+black         72.49021
+sp            71.96383
+Shape_circ    83.26979
+Shape_eccent 106.25089
+Shape_e1     111.62791
+Shape_e2     110.91868
+White_box     75.49038
+Black_box     79.78835
+> 
+> ypred=predict(tune.out$finalModel ,test[-valid,])
+> table(predict=ypred, truth=test$labs_svm[-valid])
+       truth
+predict   0   1
+      0 596   0
+      1   0 528
+> mean(ypred==test$labs_svm[-valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 596   0
+         1   0 528
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9967, 1)
+    No Information Rate : 0.5302     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5302     
+         Detection Rate : 0.5302     
+   Detection Prevalence : 0.5302     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> ypred=predict(tune.out$finalModel ,test[valid,])
+> table(predict=ypred, truth=test$labs_svm[valid])
+       truth
+predict   0   1
+      0 255   0
+      1   0 225
+> mean(ypred==test$labs_svm[valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 255   0
+         1   0 225
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9923, 1)
+    No Information Rate : 0.5312     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5312     
+         Detection Rate : 0.5312     
+   Detection Prevalence : 0.5312     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> set.seed(53978)
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> valid_1<-sample(keep1, floor(length(keep1)*0.30) )
+> valid_2<-sample(keep2, floor(length(keep2)*0.30))
+> 
+> valid<-c(valid_1, valid_2)
+> 
+> tc <- trainControl(method='cv',
++                   number = 10,
++                   search='grid')
+> 
+> grid <- expand.grid(mtry=1)
+> 
+> tune.out<-train(as.factor(labs_svm) ~.,
++           data=test[,-not_use],
++           method='rf',
++           trControl = tc,
++           tuneGrid=grid)
+> 
+> print(tune.out)
+Random Forest 
+
+1604 samples
+   9 predictor
+   2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 1444, 1443, 1444, 1443, 1443, 1443, ... 
+Resampling results:
+
+  Accuracy   Kappa    
+  0.6826514  0.3610092
+
+Tuning parameter 'mtry' was held constant at a value of 1
+> 
+> (tune.out$finalModel$importance)
+             MeanDecreaseGini
+white                70.43106
+black                71.17455
+sp                   72.21523
+Shape_circ           83.90042
+Shape_eccent        102.62380
+Shape_e1            112.51710
+Shape_e2            111.43928
+White_box            77.00549
+Black_box            80.91976
+> 
+> varImp(tune.out$finalModel)
+               Overall
+white         70.43106
+black         71.17455
+sp            72.21523
+Shape_circ    83.90042
+Shape_eccent 102.62380
+Shape_e1     112.51710
+Shape_e2     111.43928
+White_box     77.00549
+Black_box     80.91976
+> 
+> ypred=predict(tune.out$finalModel ,test[-valid,])
+> table(predict=ypred, truth=test$labs_svm[-valid])
+       truth
+predict   0   1
+      0 596   0
+      1   0 528
+> mean(ypred==test$labs_svm[-valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 596   0
+         1   0 528
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9967, 1)
+    No Information Rate : 0.5302     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5302     
+         Detection Rate : 0.5302     
+   Detection Prevalence : 0.5302     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> ypred=predict(tune.out$finalModel ,test[valid,])
+> table(predict=ypred, truth=test$labs_svm[valid])
+       truth
+predict   0   1
+      0 255   0
+      1   0 225
+> mean(ypred==test$labs_svm[valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 255   0
+         1   0 225
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9923, 1)
+    No Information Rate : 0.5312     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5312     
+         Detection Rate : 0.5312     
+   Detection Prevalence : 0.5312     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> set.seed(7404)
+> 
+> keep1<-which(test$labs_svm==1)
+> keep2<-which(test$labs_svm==0)
+> 
+> valid_1<-sample(keep1, floor(length(keep1)*0.30) )
+> valid_2<-sample(keep2, floor(length(keep2)*0.30))
+> 
+> valid<-c(valid_1, valid_2)
+> 
+> tc <- trainControl(method='cv',
++                   number = 10,
++                   search='grid')
+> 
+> grid <- expand.grid(mtry=1)
+> 
+> tune.out<-train(as.factor(labs_svm) ~.,
++           data=test[,-not_use],
++           method='rf',
++           trControl = tc,
++           tuneGrid=grid)
+> 
+> print(tune.out)
+Random Forest 
+
+1604 samples
+   9 predictor
+   2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 1444, 1443, 1444, 1443, 1444, 1444, ... 
+Resampling results:
+
+  Accuracy   Kappa    
+  0.6657997  0.3274777
+
+Tuning parameter 'mtry' was held constant at a value of 1
+> 
+> (tune.out$finalModel$importance)
+             MeanDecreaseGini
+white                71.42145
+black                72.00690
+sp                   72.24377
+Shape_circ           84.20497
+Shape_eccent        104.33622
+Shape_e1            113.55905
+Shape_e2            109.67021
+White_box            74.80945
+Black_box            80.16026
+> 
+> varImp(tune.out$finalModel)
+               Overall
+white         71.42145
+black         72.00690
+sp            72.24377
+Shape_circ    84.20497
+Shape_eccent 104.33622
+Shape_e1     113.55905
+Shape_e2     109.67021
+White_box     74.80945
+Black_box     80.16026
+> 
+> ypred=predict(tune.out$finalModel ,test[-valid,])
+> table(predict=ypred, truth=test$labs_svm[-valid])
+       truth
+predict   0   1
+      0 596   0
+      1   0 528
+> mean(ypred==test$labs_svm[-valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[-valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 596   0
+         1   0 528
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9967, 1)
+    No Information Rate : 0.5302     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5302     
+         Detection Rate : 0.5302     
+   Detection Prevalence : 0.5302     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> ypred=predict(tune.out$finalModel ,test[valid,])
+> table(predict=ypred, truth=test$labs_svm[valid])
+       truth
+predict   0   1
+      0 255   0
+      1   0 225
+> mean(ypred==test$labs_svm[valid])
+[1] 1
+> 
+> confusionMatrix(ypred, test$labs_svm[valid])
+Confusion Matrix and Statistics
+
+          Reference
+Prediction   0   1
+         0 255   0
+         1   0 225
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9923, 1)
+    No Information Rate : 0.5312     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.0000     
+            Specificity : 1.0000     
+         Pos Pred Value : 1.0000     
+         Neg Pred Value : 1.0000     
+             Prevalence : 0.5312     
+         Detection Rate : 0.5312     
+   Detection Prevalence : 0.5312     
+      Balanced Accuracy : 1.0000     
+                                     
+       'Positive' Class : 0          
+                                     
+> 
+> #repeating random partitions 100 times to see if results line up
+> 
+> 
+> set.seed(70172296)
+> 
+> acc_t<-c()
+> acc_v<-c()
+> 
+> for(i in 1:100){
++ 
++   keep1<-which(test$labs_svm==1)
++   keep2<-which(test$labs_svm==0)
++ 
++   valid_1<-sample(keep1, floor(length(keep1)*0.30) )
++   valid_2<-sample(keep2, floor(length(keep2)*0.30))
++ 
++   valid<-c(valid_1, valid_2)
++ 
++   tc <- trainControl(method='cv',
++                     number = 10,
++                     search='grid')
++ 
++   grid <- expand.grid(mtry=1)
++ 
++   tune.out<-train(as.factor(labs_svm) ~.,
++             data=test[,-not_use],
++             method='rf',
++             trControl = tc,
++             tuneGrid=grid)
++ 
++ 
++   ypred=predict(tune.out$finalModel ,test[-valid,])
++   acc_t[i]<-mean(ypred==test$labs_svm[-valid])
++ 
++ 
++   ypred=predict(tune.out$finalModel ,test[valid,])
++   acc_v[i]<-mean(ypred==test$labs_svm[valid])
++ 
++ }
+> 
+> summary(acc_t)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      1       1       1       1       1       1 
+> 
+> summary(acc_v)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      1       1       1       1       1       1 
+> 
+> 
+> #
+> 
+> proc.time()
+   user  system elapsed 
+786.520   6.155 792.750 
