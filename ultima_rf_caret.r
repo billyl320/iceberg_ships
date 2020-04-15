@@ -37,11 +37,12 @@ labs2<-as.factor(unlist( labs ))
 labs2<-unname(labs2)
 #
 #combining data
-temp<-as.data.frame(cbind(ei, ei[,1]/(ei[,1]+ei[,2]), shapes ))#,
+temp<-as.data.frame(cbind(ei, ei[,1]/(ei[,1]+ei[,2]), shapes, shapes[,6]/(shapes[,6]+shapes[,7]) ))#,
 #                          ei[,3]/(ei[,3]+ei[,4]), shapes))
 #colnames(temp)[5]<-'sp_hh'
 #colnames(temp)[6]<-'sp_hv'
 colnames(temp)[3]<-'sp'
+colnames(temp)[18]<-'sp_rect'
 
 
 #check distributions of the observations per class
@@ -57,11 +58,11 @@ summary_1<-sapply(test[keep1,-not_use],margins=2, summary)
 
 summary_0<-sapply(test[keep2,-not_use],margins=2, summary)
 
-sum_mat_1<-matrix(unlist(summary_1)[-c(1,2)], nrow=9, ncol=6, byrow=TRUE)
+sum_mat_1<-matrix(unlist(summary_1)[-c(1,2)],ncol=6, byrow=TRUE)
 rownames(sum_mat_1)<-names(summary_1)[-1]
 colnames(sum_mat_1)<-names(summary_1$sp)
 
-sum_mat_0<-matrix(unlist(summary_0)[-c(1,2)], nrow=9, ncol=6, byrow=TRUE)
+sum_mat_0<-matrix(unlist(summary_0)[-c(1,2)], ncol=6, byrow=TRUE)
 rownames(sum_mat_0)<-names(summary_0)[-1]
 colnames(sum_mat_0)<-names(summary_0$sp)
 
@@ -69,308 +70,29 @@ xtable(sum_mat_1)
 
 xtable(sum_mat_0)
 
-#simple model to check if it is possible to do simple model
-rf.fit<-randomForest(as.factor(test$labs_svm) ~.,
-              data=test[,-not_use])#,
-              #sampsize=make.size(as.factor(test$labs_svm)))
 
-#predicting
-rf.pred=predict(rf.fit, test)
-rf.class = rf.pred
-
-#test
-table(rf.class, test$labs_svm)
-#overall classification rate for training
-mean(rf.class==test$labs_svm)
-
-#now let's tune the svm model using 10-folds on t-set and validaiton
+#now let's tune the rf model using 10-folds on t-set and validaiton
 
 set.seed(80636)
 
 keep1<-which(test$labs_svm==1)
 keep2<-which(test$labs_svm==0)
 
-valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-valid_2<-sample(keep2, floor(length(keep2)*0.30))
+valid_1<-sample(keep1, floor(length(keep1)*0.20) )
+valid_2<-sample(keep2, floor(length(keep2)*0.20))
 
 valid<-c(valid_1, valid_2)
 
-tc <- trainControl(method='cv',
-                  number = 10,
-                  search='random')
-
-tune.out<-train(as.factor(labs_svm) ~.,
-          data=test[,-not_use],
-          method='rf',
-          trControl = tc)
-
-print(tune.out)
-
-(tune.out$finalModel$importance)
-
-varImp(tune.out$finalModel)
-
-ypred=predict(tune.out$finalModel ,test[-valid,])
-table(predict=ypred, truth=test$labs_svm[-valid])
-mean(ypred==test$labs_svm[-valid])
-
-confusionMatrix(ypred, test$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,test[valid,])
-table(predict=ypred, truth=test$labs_svm[valid])
-mean(ypred==test$labs_svm[valid])
-
-confusionMatrix(ypred, test$labs_svm[valid])
-
-#####################
-## Sanity Checks
-#####################
-
-#sanity check - swap the 0s and 1s to ensure that predictions flip
-index_0<-which(test$labs_svm==0)
-index_1<-which(test$labs_svm==1)
-
-sanity_labs<-test$labs_svm
-sanity_labs[index_0]=1
-sanity_labs[index_1]=0
-
-head(sanity_labs)
-
-ypred_sanity=predict(tune.out$finalModel ,test)
-table(predict=ypred_sanity, truth=sanity_labs)
-mean(ypred_sanity==sanity_labs)
-
-confusionMatrix(ypred_sanity, sanity_labs)
-
-# since the results swapped, we know that the
-# algorithm isn't making some silly error.
-
-#now let's 'confuse' the algorithm by changing some of the values
-# we'll simuate values by swapping around random values
-# between pairs of observations (number_obs_sanity each )
-
-num_0<-length(index_0)
-num_1<-length(index_1)
-
-number_obs_sanity<-300
-
-#getting pairs
-vals_0<-sample(index_0,
-               size=number_obs_sanity,
-               replace=FALSE)
-vals_1<-sample(index_1,
-               size=number_obs_sanity,
-               replace=FALSE)
-
-#creating changed data set
-changed_data<-test[,-not_use]
-
-
-
-for(i in 1:number_obs_sanity){
-
-    #variable to swap
-    temp_var<-sample(2:10, 4)
-
-    #placeholder for 0
-    temp_val<-changed_data[vals_0[i], temp_var]
-
-    #swapping 1 for 0
-    changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
-
-    #swapping 0 for 1
-    changed_data[vals_1[i], temp_var]<- temp_var
-
-}
-
-#now predicting on the data using swapped observations and trained model
-
-ypred=predict(tune.out$finalModel ,changed_data[-valid,])
-table(predict=ypred, truth=changed_data$labs_svm[-valid])
-mean(ypred==changed_data$labs_svm[-valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,changed_data[valid,])
-table(predict=ypred, truth=changed_data$labs_svm[valid])
-mean(ypred==changed_data$labs_svm[valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[valid])
-
-#
-#now let's do it for the most important triad of variables
-# (e1, e2, and eccentricity)
-
-#creating changed data set
-changed_data<-test[,-not_use]
-
-
-for(i in 1:number_obs_sanity){
-
-    #variable to swap
-    temp_var<-c(6:8)
-
-    #placeholder for 0
-    temp_val<-changed_data[vals_0[i], temp_var]
-
-    #swapping 1 for 0
-    changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
-
-    #swapping 0 for 1
-    changed_data[vals_1[i], temp_var]<- temp_var
-
-}
-
-#now predicting on the data using swapped observations and trained model
-
-ypred=predict(tune.out$finalModel ,changed_data[-valid,])
-table(predict=ypred, truth=changed_data$labs_svm[-valid])
-mean(ypred==changed_data$labs_svm[-valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,changed_data[valid,])
-table(predict=ypred, truth=changed_data$labs_svm[valid])
-mean(ypred==changed_data$labs_svm[valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[valid])
-
-#now let's do it for SPEI vars
-# (white, black, sp)
-
-#creating changed data set
-changed_data<-test[,-not_use]
-
-
-for(i in 1:number_obs_sanity){
-
-    #variable to swap
-    temp_var<-c(2:4)
-
-    #placeholder for 0
-    temp_val<-changed_data[vals_0[i], temp_var]
-
-    #swapping 1 for 0
-    changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
-
-    #swapping 0 for 1
-    changed_data[vals_1[i], temp_var]<- temp_var
-
-}
-
-#now predicting on the data using swapped observations and trained model
-
-ypred=predict(tune.out$finalModel ,changed_data[-valid,])
-table(predict=ypred, truth=changed_data$labs_svm[-valid])
-mean(ypred==changed_data$labs_svm[-valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,changed_data[valid,])
-table(predict=ypred, truth=changed_data$labs_svm[valid])
-mean(ypred==changed_data$labs_svm[valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[valid])
-
-#now let's do it for remaining variables
-# (circ, black_box, white_box)
-
-#creating changed data set
-changed_data<-test[,-not_use]
-
-
-for(i in 1:number_obs_sanity){
-
-    #variable to swap
-    temp_var<-c(5,9,10)
-
-    #placeholder for 0
-    temp_val<-changed_data[vals_0[i], temp_var]
-
-    #swapping 1 for 0
-    changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
-
-    #swapping 0 for 1
-    changed_data[vals_1[i], temp_var]<- temp_var
-
-}
-
-#now predicting on the data using swapped observations and trained model
-
-ypred=predict(tune.out$finalModel ,changed_data[-valid,])
-table(predict=ypred, truth=changed_data$labs_svm[-valid])
-mean(ypred==changed_data$labs_svm[-valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,changed_data[valid,])
-table(predict=ypred, truth=changed_data$labs_svm[valid])
-mean(ypred==changed_data$labs_svm[valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[valid])
-
-
-#now let's randomly select any number of variables
-
-#creating changed data set
-changed_data<-test[,-not_use]
-
-
-for(i in 1:number_obs_sanity){
-
-    num_swap<-c(1:9, 1)
-
-    #variable to swap
-    temp_var<-sample(2:10, num_swap)
-
-    #placeholder for 0
-    temp_val<-changed_data[vals_0[i], temp_var]
-
-    #swapping 1 for 0
-    changed_data[vals_0[i], temp_var]<- changed_data[vals_1[i], temp_var]
-
-    #swapping 0 for 1
-    changed_data[vals_1[i], temp_var]<- temp_var
-
-}
-
-#now predicting on the data using swapped observations and trained model
-
-ypred=predict(tune.out$finalModel ,changed_data[-valid,])
-table(predict=ypred, truth=changed_data$labs_svm[-valid])
-mean(ypred==changed_data$labs_svm[-valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,changed_data[valid,])
-table(predict=ypred, truth=changed_data$labs_svm[valid])
-mean(ypred==changed_data$labs_svm[valid])
-
-confusionMatrix(ypred, changed_data$labs_svm[valid])
-
-
-###############################################
-#repeating to check if results are the same
-#using mtry=1
-
-set.seed(9400)
-
-keep1<-which(test$labs_svm==1)
-keep2<-which(test$labs_svm==0)
-
-valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-valid_2<-sample(keep2, floor(length(keep2)*0.30))
-
-valid<-c(valid_1, valid_2)
+train<-test[-valid,]
 
 tc <- trainControl(method='cv',
                   number = 10,
                   search='grid')
 
-grid <- expand.grid(mtry=1)
+grid <- expand.grid(mtry=c(1:6))
 
 tune.out<-train(as.factor(labs_svm) ~.,
-          data=test[,-not_use],
+          data=train[,-not_use],
           method='rf',
           trControl = tc,
           tuneGrid=grid)
@@ -381,45 +103,7 @@ print(tune.out)
 
 varImp(tune.out$finalModel)
 
-ypred=predict(tune.out$finalModel ,test[-valid,])
-table(predict=ypred, truth=test$labs_svm[-valid])
-mean(ypred==test$labs_svm[-valid])
-
-confusionMatrix(ypred, test$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,test[valid,])
-table(predict=ypred, truth=test$labs_svm[valid])
-mean(ypred==test$labs_svm[valid])
-
-confusionMatrix(ypred, test$labs_svm[valid])
-
-set.seed(60662)
-
-keep1<-which(test$labs_svm==1)
-keep2<-which(test$labs_svm==0)
-
-valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-valid_2<-sample(keep2, floor(length(keep2)*0.30))
-
-valid<-c(valid_1, valid_2)
-
-tc <- trainControl(method='cv',
-                  number = 10,
-                  search='grid')
-
-grid <- expand.grid(mtry=1)
-
-tune.out<-train(as.factor(labs_svm) ~.,
-          data=test[,-not_use],
-          method='rf',
-          trControl = tc,
-          tuneGrid=grid)
-
-print(tune.out)
-
-(tune.out$finalModel$importance)
-
-varImp(tune.out$finalModel)
+varImp(tune.out)
 
 ypred=predict(tune.out$finalModel ,test[-valid,])
 table(predict=ypred, truth=test$labs_svm[-valid])
@@ -427,45 +111,27 @@ mean(ypred==test$labs_svm[-valid])
 
 confusionMatrix(ypred, test$labs_svm[-valid])
 
-ypred=predict(tune.out$finalModel ,test[valid,])
-table(predict=ypred, truth=test$labs_svm[valid])
-mean(ypred==test$labs_svm[valid])
+measures_test<-matrix(nrow=2, ncol=3, data=0 )
+rownames(measures_test)<-c('0', '1')
+colnames(measures_test)<-c("Precision", "Recall", "F-1 Score")
 
-confusionMatrix(ypred, test$labs_svm[valid])
+precision <- posPredValue(ypred, test$labs_svm[-valid], positive="0")
+recall <- sensitivity(ypred, test$labs_svm[-valid], positive="0")
+F1 <- (2 * precision * recall) / (precision + recall)
+measures_test[1,1]<-precision
+measures_test[1,2]<-recall
+measures_test[1,3]<-F1
 
-set.seed(53978)
+precision <- posPredValue(ypred, test$labs_svm[-valid], positive="1")
+recall <- sensitivity(ypred, test$labs_svm[-valid], positive="1")
+F1 <- (2 * precision * recall) / (precision + recall)
+measures_test[2,1]<-precision
+measures_test[2,2]<-recall
+measures_test[2,3]<-F1
 
-keep1<-which(test$labs_svm==1)
-keep2<-which(test$labs_svm==0)
+xtable(measures_test)
 
-valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-valid_2<-sample(keep2, floor(length(keep2)*0.30))
-
-valid<-c(valid_1, valid_2)
-
-tc <- trainControl(method='cv',
-                  number = 10,
-                  search='grid')
-
-grid <- expand.grid(mtry=1)
-
-tune.out<-train(as.factor(labs_svm) ~.,
-          data=test[,-not_use],
-          method='rf',
-          trControl = tc,
-          tuneGrid=grid)
-
-print(tune.out)
-
-(tune.out$finalModel$importance)
-
-varImp(tune.out$finalModel)
-
-ypred=predict(tune.out$finalModel ,test[-valid,])
-table(predict=ypred, truth=test$labs_svm[-valid])
-mean(ypred==test$labs_svm[-valid])
-
-confusionMatrix(ypred, test$labs_svm[-valid])
+colMeans(measures_test)
 
 ypred=predict(tune.out$finalModel ,test[valid,])
 table(predict=ypred, truth=test$labs_svm[valid])
@@ -473,89 +139,26 @@ mean(ypred==test$labs_svm[valid])
 
 confusionMatrix(ypred, test$labs_svm[valid])
 
-set.seed(7404)
 
-keep1<-which(test$labs_svm==1)
-keep2<-which(test$labs_svm==0)
+measures_valid<-matrix(nrow=2, ncol=3, data=0 )
+rownames(measures_valid)<-c('0', '1')
+colnames(measures_valid)<-c("Precision", "Recall", "F-1 Score")
 
-valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-valid_2<-sample(keep2, floor(length(keep2)*0.30))
+precision <- posPredValue(ypred, test$labs_svm[valid], positive="0")
+recall <- sensitivity(ypred, test$labs_svm[valid], positive="0")
+F1 <- (2 * precision * recall) / (precision + recall)
+measures_valid[1,1]<-precision
+measures_valid[1,2]<-recall
+measures_valid[1,3]<-F1
 
-valid<-c(valid_1, valid_2)
+precision <- posPredValue(ypred, test$labs_svm[valid], positive="1")
+recall <- sensitivity(ypred, test$labs_svm[valid], positive="1")
+F1 <- (2 * precision * recall) / (precision + recall)
+measures_valid[2,1]<-precision
+measures_valid[2,2]<-recall
+measures_valid[2,3]<-F1
 
-tc <- trainControl(method='cv',
-                  number = 10,
-                  search='grid')
+xtable(measures_valid)
 
-grid <- expand.grid(mtry=1)
-
-tune.out<-train(as.factor(labs_svm) ~.,
-          data=test[,-not_use],
-          method='rf',
-          trControl = tc,
-          tuneGrid=grid)
-
-print(tune.out)
-
-(tune.out$finalModel$importance)
-
-varImp(tune.out$finalModel)
-
-ypred=predict(tune.out$finalModel ,test[-valid,])
-table(predict=ypred, truth=test$labs_svm[-valid])
-mean(ypred==test$labs_svm[-valid])
-
-confusionMatrix(ypred, test$labs_svm[-valid])
-
-ypred=predict(tune.out$finalModel ,test[valid,])
-table(predict=ypred, truth=test$labs_svm[valid])
-mean(ypred==test$labs_svm[valid])
-
-confusionMatrix(ypred, test$labs_svm[valid])
-
-#repeating random partitions 100 times to see if results line up
-
-
-set.seed(70172296)
-
-acc_t<-c()
-acc_v<-c()
-
-for(i in 1:100){
-
-  keep1<-which(test$labs_svm==1)
-  keep2<-which(test$labs_svm==0)
-
-  valid_1<-sample(keep1, floor(length(keep1)*0.30) )
-  valid_2<-sample(keep2, floor(length(keep2)*0.30))
-
-  valid<-c(valid_1, valid_2)
-
-  tc <- trainControl(method='cv',
-                    number = 10,
-                    search='grid')
-
-  grid <- expand.grid(mtry=1)
-
-  tune.out<-train(as.factor(labs_svm) ~.,
-            data=test[,-not_use],
-            method='rf',
-            trControl = tc,
-            tuneGrid=grid)
-
-
-  ypred=predict(tune.out$finalModel ,test[-valid,])
-  acc_t[i]<-mean(ypred==test$labs_svm[-valid])
-
-
-  ypred=predict(tune.out$finalModel ,test[valid,])
-  acc_v[i]<-mean(ypred==test$labs_svm[valid])
-
-}
-
-summary(acc_t)
-
-summary(acc_v)
-
-
+colMeans(measures_valid)
 #

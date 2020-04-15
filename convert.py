@@ -80,7 +80,7 @@ def Shapes(pic):
     shapes[0][2] = e1
     shapes[0][3] = e2
     #number of corners
-    corners = corner_harris(pic, k=0.1, sigma=0.01)
+    corners = corner_harris(pic, k=0.01)
     shapes[0][4] = corner_peaks(corners, min_distance=1).shape[0]
     #white and black pixel counts for min bounding box
     theta = rp( (pic>0.5) +0)[0]['orientation']
@@ -141,7 +141,7 @@ def BinaryHist(fname):
     labs, imgs_hh, imgs_hv, imgs_ave = lj.norm_j(fname)
     hist_hh = np.zeros( (len(imgs_hh),2) )
     hist_hv = np.zeros( (len(imgs_hv),2) )
-    hist_ave = np.zeros( (len(imgs_hv),2) )
+    hist_ave = np.zeros( (len(imgs_ave),2) )
     #appling SPEI
     for i in range(0, len(imgs_hh)):
         print(i)
