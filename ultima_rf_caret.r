@@ -1,5 +1,3 @@
-#r simple svm model
-
 rm(list=ls())
 
 
